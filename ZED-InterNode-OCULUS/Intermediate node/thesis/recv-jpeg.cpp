@@ -231,6 +231,7 @@ int main() {
     int seqNumber = 1;
     bool SharedMemoryReady = true;
 
+    //variables to receive the information of each frame
     unsigned char *bufferL = NULL;
     unsigned char *bufferR = NULL;
     unsigned char *info = NULL;
@@ -482,23 +483,6 @@ int main() {
 
 
     }
-
-
-    //we send this data
-    /*if(send) {
-        n2 = write(sockfd2, sharedMemory, 3);
-        if (n2 < 0)
-            error("ERROR writing to socket");
-        if (n2 > 0) {
-            //printf("Data sent through the socket : %s\n", sharedMemory);
-            send = false;
-            end = std::chrono::system_clock::now();
-            sendc++;
-        }
-    }*/
-
-
-
 
     return 0;
 }

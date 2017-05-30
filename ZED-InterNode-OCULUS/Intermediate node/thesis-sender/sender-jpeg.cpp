@@ -19,7 +19,12 @@ using namespace cv;
 #define RESIZE_WIDTH 84
 #define RESIZE_HEIGTH 47
 #define SHMSZ 5000000
-#define halfcode true
+
+//variable that will allow the user to change between RAW, HALF and FULL mode
+// if data comes decompressed, true must be used
+// if data comes compressed, false means FULL scenario
+// if data comes compressed, true menas HALF scenario
+#define halfcode false
 
 pthread_mutex_t init_lock = PTHREAD_MUTEX_INITIALIZER;
 
@@ -109,28 +114,7 @@ int main() {
         error("ERROR on accept");
 
 
-    int sendbuff;
-    int res = 0;
-    socklen_t optlen = sizeof(sendbuff);
-    res = getsockopt(sockfd2, SOL_SOCKET, SO_SNDBUF, &sendbuff, &optlen);
-    if(res == -1){
-        printf("error\n");
-    }
-    else{
-        printf("sending buffer: %d\n",sendbuff);
-    }
 
-    sendbuff = 20000000;
-    res = setsockopt(sockfd2, SOL_SOCKET, SO_SNDBUF, &sendbuff, sizeof(sendbuff));
-
-    optlen = sizeof(sendbuff);
-    res = getsockopt(sockfd2, SOL_SOCKET, SO_SNDBUF, &sendbuff, &optlen);
-    if(res == -1){
-        printf("error\n");
-    }
-    else{
-        printf("sending buffer: %d\n",sendbuff);
-    }
     //we declare the variables related with the shared memory
     char cc;
     int shmidL, shmidR, shmidCon;
@@ -280,6 +264,7 @@ int main() {
     end = std::chrono::system_clock::now();
     std::chrono::duration<double> elapsed_seconds;
 
+    //More auxiliar variables
     int e=0;
     char testR[6];
     char testL[6];
@@ -292,7 +277,9 @@ int main() {
     int receivedFPS =0;
     int sendFPS= 0;
     int CameraFPS=0;
+
     int category = 8;
+
     int ImageSize = 0;
 
     //variables to process the image
@@ -316,6 +303,8 @@ int main() {
     else{
         encode ='Y';
     }
+
+    //variables to compress and decompress the frames
     std::vector<uchar> buffL;
     std::vector<uchar> buffR;
     std::vector<uchar> buffLresized;
@@ -367,7 +356,6 @@ int main() {
     std::ofstream fs12("AverageLatency.txt");
     std::ofstream fs13("sizeCompressed.txt");
 
-    int condition = 8;
     //main lopp
     int i = 1;
     while (i < 2) {
@@ -403,8 +391,6 @@ int main() {
                 latencyCounter=0;
             }
 
-
-
             receivedFPS = recvc;
             sendFPS = sendc;
             oculus_FPS = sendFPS;
@@ -435,13 +421,12 @@ int main() {
         }
 
         //test if we can receive in localhost
-        // while (select == true)
         //we receive some data
 
         n2= read(newsockfd, buffer, 3);
         if(n2>0){
             if((buffer[0]=='s')&&(buffer[1]=='m')&&(buffer[2]=='R')){
-
+                //the program reads the information from the shared memory block
                 startReading = std::chrono::system_clock::now();
                 startcountig = startReading;
                 seqNumberL = *(int *) sL;
@@ -455,11 +440,11 @@ int main() {
                 memcpy(&infoL[4], &category, sizeof(int));
                 memcpy(&infoR[4], &category, sizeof(int));
 
-
-                if(infoL[3] == 'Y'){
-                    capacityLeft = *(int *)&sL[12];
-                    capacityRigth = *(int *)&sR[12];
-                    if(encode == 'R'){
+                //if the information was compressed and it has to be decompressed, now it is the moment
+                if(infoL[3] == 'Y') {
+                    capacityLeft = *(int *) &sL[12];
+                    capacityRigth = *(int *) &sR[12];
+                    if (encode == 'R') {
                         buffL.reserve(capacityLeft);
                         buffR.reserve(capacityRigth);
 
@@ -485,8 +470,7 @@ int main() {
                         memcpy(&infoL[12], imageL.data, sizeL);
                         memcpy(&infoR[12], imageR.data, sizeR);
                         bytesToSend = sizeR + 12;
-                    }
-                    else{
+                    } else {
                         pthread_mutex_lock(&(init_lock));
                         memcpy(&infoL[16], &sL[16], sizeL);
                         memcpy(&infoR[16], &sR[16], sizeR);
@@ -497,10 +481,11 @@ int main() {
                         memcpy(&infoL[12], &capacityLeft, sizeof(int));
                         memcpy(&infoR[12], &capacityRigth, sizeof(int));
                         startProcessing = std::chrono::system_clock::now();
-                        bytesToSendLeft = sizeL+16;
-                        bytesToSendRigth = sizeR+16;
+                        bytesToSendLeft = sizeL + 16;
+                        bytesToSendRigth = sizeR + 16;
                     }
                 }
+                //on the other side, the information is copied to another variable
                 else if(infoL[3] == 'N'){
                     memcpy(&infoL[8], &sizeL, sizeof(int));
                     memcpy(&infoR[8], &sizeR, sizeof(int));
@@ -522,13 +507,9 @@ int main() {
                     fs3 << reading[f] << endl;
                 }
 
-               /* if(infoL[3] =='N'){
-                    condition = 9;
-                }
-                else{
-                    condition = 8;
-                }*/
-                if(category != condition){
+               //now the program check the category in order to know if some image tranformations
+                //should be carried out
+                if(category != 8){
                     if((infoL[3]=='Y') && (encode == 'Y')){
                         buffL.reserve(capacityLeft);
                         buffR.reserve(capacityRigth);
@@ -547,12 +528,13 @@ int main() {
                         memcpy(imageL.data, &infoL[12], sizeL);
                         memcpy(imageR.data, &infoR[12], sizeR);
                     }
-                    //endProcessing = std::chrono::system_clock::now();
                     elapsed_seconds_Processing = endProcessing - startProcessing;
                     if(f < 4000){
                         processing[f] = elapsed_seconds_Processing.count() * 1000;
                         fs5 << processing[f] << endl;
                     }
+
+                    //part of the resizing the frames
                     startProcessing = std::chrono::system_clock::now();
                     resize_width = RESIZE_WIDTH * category;
                     resize_heigth = RESIZE_HEIGTH * category;
@@ -570,6 +552,7 @@ int main() {
                         fs6 << processing[f] << endl;
                     }
 
+                    //In case of necessity the images are compressed again
                     startProcessing = std::chrono::system_clock::now();
                     if((infoL[3]=='Y')&&(encode =='Y')){
                         cv::imencode(".jpg", imageResizedL, buffLresized);
@@ -634,6 +617,7 @@ int main() {
                     oldseqNumberL = seqNumberL;
                 }
 
+                //if everything is correct, it is time to send both images to the VR computer
                 while (!both) {
                     infoL[0] = 'a';
                     infoL[1] = 'a';
@@ -675,6 +659,7 @@ int main() {
                     if (side == 'L'){
                         side = 'R';
                     }
+                        //now the program waits for the feedback from the VR computer
                     else if (side == 'R') {
                         endSending = std::chrono::system_clock::now();
                         endcounting = std::chrono::system_clock::now();
@@ -718,22 +703,6 @@ int main() {
 
             }
         }
-
-
-        /*if(category != 8){
-            if (side == 'L') memcpy(image0.data, infoL, size);
-            else if (side == 'R') memcpy(image0.data, infoR, size);
-            else printf("error when copying the information into the image\n");
-
-            resize_width = RESIZE_WIDTH * category;
-            resize_heigth = RESIZE_HEIGTH * category;
-
-            resize(image0, imageResized, Size(resize_width, resize_heigth));
-
-            if (side == 'L') memcpy(infoL, imageResized.data, resize_width * resize_heigth * 4);
-            else if (side == 'R') memcpy(infoR, imageResized.data, resize_width * resize_heigth * 4);
-            else printf("error when copying the information into the image\n");
-        }*/
 
     }
 

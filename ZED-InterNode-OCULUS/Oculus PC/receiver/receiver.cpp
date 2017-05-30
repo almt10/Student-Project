@@ -203,8 +203,8 @@ int main(int argc, char *argv[])
 		printf("Screens detected: %i", display_max);
 		//SDL_Delay(5000);
 		//we stablish the width and height of the window
-		int winWidth = 1280;
-		int winHeight = 720;
+		int winWidth = 672;
+		int winHeight = 376;
 		//Uint32 flags = SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_FULLSCREEN;
 		Uint32 flags = SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE;
 		// Create SDL2 Window
@@ -497,6 +497,8 @@ int main(int argc, char *argv[])
 		glBindBuffer(GL_ARRAY_BUFFER, rectVBO[1]);
 		glVertexAttribPointer(Shader::ATTRIB_TEXTURE2D_POS, 2, GL_FLOAT, GL_FALSE, 0, 0);
 
+		//variables used to receive and keep the information from the socket
+		//Also variables used to control the flow of the program
 		char label[2];
 		char side;
 		char *bufferI = NULL;
@@ -517,6 +519,7 @@ int main(int argc, char *argv[])
 		bool moreData = false;
 		int dataReaded = DEFAULT_BUFLEN;
 
+		//variables used to keep the information of the images received and resized after being received
 		cv::Mat image0 = cv::Mat(resizeHeight, resizeWidth, CV_8UC4, 1);
 		cv::Mat image1 = cv::Mat(zedHeight, zedWidth, CV_8UC4, 1);
 		cv::Mat image2 = cv::Mat(zedHeight, zedWidth, CV_8UC4, 1);
@@ -556,6 +559,8 @@ int main(int argc, char *argv[])
 		char encode = 'N';
 		int capacityInt = 0;
 		bool labels = false;
+
+
 		// Main loop
 		while (true) {
 			// Compute the time used to render the previous frame
@@ -575,6 +580,7 @@ int main(int argc, char *argv[])
 				zedFPS = zedc;
 				zedc = 0;
 				zedtime = 0;
+				//loop to save the information of the packets arrival distribution in a file
 				if (n < 1000) {
 					for (int h = 0; h < l; h++) {
 						fs3 << distribution[h][n] << "  ";
@@ -651,6 +657,7 @@ int main(int argc, char *argv[])
 					endTest = startTest;
 				}
 			init:
+				//loop to receive the information of both images
 				while (!both) {
 					iResult = recv(ClientSocket, recvbuf, 2, 0);
 					startChrono = std::chrono::system_clock::now();
@@ -658,6 +665,7 @@ int main(int argc, char *argv[])
 						label[0] = recvbuf[0];
 						label[1] = recvbuf[1];						
 						if ((label[0] != 'a') || (label[1] != 'a')) {
+							//in case the information is corrupted, the program ask the intermediate node for more information
 							bool next = false;
 							sendbuf[0] = 'c';
 							sendbuf[1] = 'c';
@@ -670,6 +678,7 @@ int main(int argc, char *argv[])
 								WSACleanup();
 								return 1;
 							}
+							//The program continues reading all the information until it detects the beginning of a new frame
 							while (!next) {
 								iResult = recv(ClientSocket, recvbuf, 1, 0);
 								if (iResult > 0) {
@@ -695,7 +704,7 @@ int main(int argc, char *argv[])
 							}
 						}
 
-						//now we read the the side of the image
+						//now the program reads the the side of the image
 						if (labels) {
 							iResult = recv(ClientSocket, recvbuf, 5, 0);
 						}
@@ -713,6 +722,7 @@ int main(int argc, char *argv[])
 								encode = recvbuf[1];
 								resize_factor = *(int *)&recvbuf[2];
 							}
+							//some comprobations to see that the information arrived according to the protocol created
 							if ((encode != 'Y') && (encode != 'N') && (encode != 'R')) {
 								goto init;
 							}
@@ -722,10 +732,7 @@ int main(int argc, char *argv[])
 							if ((side != 'L') && (side != 'R')) {
 								goto init;
 							}
-							/*char test = recvbuf[2];
-							char test2 = recvbuf[3];
-							char test3 = recvbuf[4];
-							char test4 = recvbuf[5];*/
+							//the program initializes the variables needed to keep the information of each image
 							if ((resize_factor <= 8 && resize_factor>0) && (resize_factor!=old_category)) {
 								if (side == 'L') {
 									if (encode == 'R') {
@@ -765,106 +772,26 @@ int main(int argc, char *argv[])
 								if ((size <0) || (size>15000000)) {
 									goto init;
 								}
-								/*if (resize == 'a') {
-									resize_factor = 1;
-									image0 = cv::Mat(resize_factor*resizeHeight, resize_factor*resizeWidth, CV_8UC4, 1);
-									imageLeft = cv::Mat(resize_factor*resizeHeight, resize_factor*resizeWidth, CV_8UC4, 1);
-									imageRight = cv::Mat(resize_factor*resizeHeight, resize_factor*resizeWidth, CV_8UC4, 1);*/
-									if (encode == 'Y') {
-										iResult = recv(ClientSocket, recvbuf, 4, 0);
-										capacityInt = *(int *)recvbuf;
-										if ((capacityInt <0) || ( capacityInt>1500000)) {
-											goto init;
-										}
-										if (side == 'L') {
-											capacityL = capacityInt;
-											sizeL = size;
-										}
-										else {
-											capacityR = capacityInt;
-											sizeR = size;
-											if (sizeR > 3 * sizeL) {
-												goto init;
-											}
-										}
-									}
 								
-							/*
-								else if (resize == 'b') {
-									resize_factor = 1;
-									image0 = cv::Mat(resize_factor*resizeHeight, resize_factor*resizeWidth, CV_8UC4, 1);
-									imageLeft = cv::Mat(resize_factor*resizeHeight, resize_factor*resizeWidth, CV_8UC4, 1);
-									imageRight = cv::Mat(resize_factor*resizeHeight, resize_factor*resizeWidth, CV_8UC4, 1);
-									if (encode == 'Y') {
-										iResult = recv(ClientSocket, recvbuf, 4, 0);
-										capacityInt = *(int *)recvbuf;
-										if (side == 'L') {
-											capacityL = capacityInt;
-											sizeL = size;
-										}
-										else {
-											capacityR = capacityInt;
-											sizeR = size;
-										}
-									}
-								}
-								else if (resize == 'c') {
-									resize_factor = 2;
-									image0 = cv::Mat(resize_factor*resizeHeight, resize_factor*resizeWidth, CV_8UC4, 1);
-									imageLeft = cv::Mat(resize_factor*resizeHeight, resize_factor*resizeWidth, CV_8UC4, 1);
-									imageRight = cv::Mat(resize_factor*resizeHeight, resize_factor*resizeWidth, CV_8UC4, 1);
-									if (encode == 'Y') {
-										iResult = recv(ClientSocket, recvbuf, 4, 0);
-										capacityInt = *(int *)recvbuf;
-										if (side == 'L') {
-											capacityL = capacityInt;
-											sizeL = size;
-										}
-										else {
-											capacityR = capacityInt;
-											sizeR = size;
-										}
-									}
-								}
-								else if (resize == 'd') {
-									resize_factor = 4;
-									image0 = cv::Mat(resize_factor*resizeHeight, resize_factor*resizeWidth, CV_8UC4, 1);
-									imageLeft = cv::Mat(resize_factor*resizeHeight, resize_factor*resizeWidth, CV_8UC4, 1);
-									imageRight = cv::Mat(resize_factor*resizeHeight, resize_factor*resizeWidth, CV_8UC4, 1);
-									if (encode == 'Y') {
-										iResult = recv(ClientSocket, recvbuf, 4, 0);
-										capacityInt = *(int *)recvbuf;
-										if (side == 'L') {
-											capacityL = capacityInt;
-											sizeL = size;
-										}
-										else {
-											capacityR = capacityInt;
-											sizeR = size;
-										}
-									}
-								}
-								else if (resize == 'e') {
-									resize_factor = 8;
-									/*
-									image0 = cv::Mat(resize_factor*resizeHeight, resize_factor*resizeWidth, CV_8UC4, 1);
-									imageLeft = cv::Mat(resize_factor*resizeHeight, resize_factor*resizeWidth, CV_8UC4, 1);
-									imageRight = cv::Mat(resize_factor*resizeHeight, resize_factor*resizeWidth, CV_8UC4, 1);
+								if (encode == 'Y') {
 									iResult = recv(ClientSocket, recvbuf, 4, 0);
-									for (int i = 0; i < 4; i++) {
-									capacity[i] = recvbuf[i];
+									capacityInt = *(int *)recvbuf;
+									if ((capacityInt <0) || ( capacityInt>1500000)) {
+										goto init;
 									}
-									capacityInt = buffToInteger(capacity);
 									if (side == 'L') {
-									capacityL = capacityInt;
-									sizeL = size;
+										capacityL = capacityInt;
+										sizeL = size;
 									}
 									else {
-									capacityR = capacityInt;
-									sizeR = size;
+										capacityR = capacityInt;
+										sizeR = size;
+										if (sizeR > 3 * sizeL) {
+											goto init;
+										}
 									}
-									*/
-								
+								}
+								// the program prepares the buffers that are going to be used to save the information				
 								if (side == 'L') {
 									bufferI = (char *)realloc(bufferI, size);
 								}
@@ -891,7 +818,6 @@ int main(int argc, char *argv[])
 												endChrono= std::chrono::system_clock::now();
 												endTest = endChrono;
 												elapsed_seconds = endChrono - startChrono;
-												//printf("%lf\n", elapsed_seconds.count() * 1000);
 												elapsed_seconds_test = endTest - startTest;
 												if (i < 10000) {
 													read[i] = (double)elapsed_seconds.count() * 1000;
@@ -902,8 +828,8 @@ int main(int argc, char *argv[])
 													l++;
 												}
 												zedc++;
-												//we create the feedback we want to send to the intermidiate node
-												
+
+												//we create the feedback we want to send to the intermidiate node												
 												sendbuf[0] = 'c';
 												sendbuf[1] = 'c';
 												memcpy(&sendbuf[2], &size, sizeof(unsigned int));
@@ -966,24 +892,22 @@ int main(int argc, char *argv[])
 						//return 1;
 					}
 				}
+
 				startChrono = std::chrono::system_clock::now();
-				/*memcpy(image1.data, bufferI, size);
-				cv::imwrite("zedLeft.jpg", image1);
-				memcpy(image2.data, bufferD, size);
-				cv::imwrite("zedRigth.jpg", image2);*/
+
 				if (encode == 'Y') {
 					buff.reserve(capacityL);
 					buff.resize(sizeL);
 					memcpy(buff.data(), bufferI, sizeL);
+
 					startChrono = std::chrono::system_clock::now();
 					imageLeft = cv::imdecode(buff, CV_LOAD_IMAGE_COLOR);
 					endChrono = std::chrono::system_clock::now();
+
 					buff.reserve(capacityR);					
 					buff.resize(sizeR);
-
 					memcpy(buff.data(), bufferD, sizeR);					
 					imageRight = cv::imdecode(buff, CV_LOAD_IMAGE_COLOR);
-
 					
 					buff.clear();
 				
@@ -1068,57 +992,8 @@ int main(int argc, char *argv[])
 						memcpy(bufferD, image1.data, zedHeight*zedWidth * 4);
 					}
 				}
-				/*if (encode == 'Y') {
-					buff.reserve(capacityL);
-					buff2.reserve(capacityR);
-
-					buff.resize(sizeL);
-					buff2.resize(sizeR);
-
-					memcpy(buff.data(), bufferI, sizeL);
-					memcpy(buff2.data(), bufferD, sizeR);
-					imageLeft = cv::imdecode(buff, CV_LOAD_IMAGE_COLOR);
-					imageRight = cv::imdecode(buff2, CV_LOAD_IMAGE_COLOR);
-					//cv::imwrite("zedResizedRigth.jpg", imageRight);
-					cv::Size dimensions = imageLeft.size();
-					//cv::imwrite("imageDecoded.jpg", imageLeft);
-					size = dimensions.height * dimensions.width * 4;
-					if (size == (resize_factor *resize_factor * resizeWidth * resizeHeight * 4)) {
-						imageLeft = cv::Mat(resize_factor*resizeHeight, resize_factor*resizeWidth, CV_8UC4, 1);
-						cv::resize(imageLeft, image1, cv::Size(zedWidth, zedHeight));
-						//cv::imwrite("zedResized.jpg", image1);
-						bufferI = (char *)realloc(bufferI, zedHeight*zedWidth * 3);
-						memcpy(bufferI, image1.data, zedHeight*zedWidth * 3);
-
-						imageRight = cv::Mat(resize_factor*resizeHeight, resize_factor*resizeWidth, CV_8UC4, 1);
-						cv::resize(imageRight, image2, cv::Size(zedWidth, zedHeight));
-						//cv::imwrite("zedResizedRigth.jpg", image2);
-						bufferD = (char *)realloc(bufferD, zedHeight*zedWidth * 3);
-						memcpy(bufferD, image2.data, zedHeight*zedWidth * 3);
-						//std::memmove(bufferD, image2.data, zedHeight*zedWidth * 3);
-					}
-				}
-				else {
-					if ((size == (resize_factor *resize_factor * resizeWidth * resizeHeight * 4)) && (resize_factor != 8)) {
-						memcpy(imageLeft.data, bufferI, resize_factor *resize_factor * resizeHeight * resizeWidth * 4);
-						//cv::imwrite("zedReceived.jpg", image0);
-						cv::resize(imageLeft, image1, cv::Size(zedWidth, zedHeight));
-						//cv::imwrite("zedResized.jpg", image1);
-						bufferI = (char *)realloc(bufferI, zedHeight*zedWidth * 4);
-						memcpy(bufferI, image1.data, zedHeight*zedWidth * 4);
-
-						memcpy(imageRight.data, bufferD, resize_factor * resize_factor *  resizeHeight * resizeWidth * 4);
-						//cv::imwrite("zedReceivedRigth.jpg", image0);
-						cv::resize(imageRight, image1, cv::Size(zedWidth, zedHeight));
-						//cv::imwrite("zedResizedRigth.jpg", image1);
-						bufferD = (char *)realloc(bufferD, zedHeight*zedWidth * 4);
-						memcpy(bufferD, image1.data, zedHeight*zedWidth * 4);
-					}
-				}*/
-				/*memcpy(image1.data, bufferI,zedHeight * zedWidth * 4);
-				cv::imwrite("LeftImage.jpg", image1);
-				memcpy(image2.data, bufferD, zedHeight * zedWidth * 4);
-				cv::imwrite("RigthImage.jpg", image2);*/
+				
+				//After having the images in the right format, the program continues to adapt them to Oculus
 				if (refresh) {
 					startChrono = std::chrono::system_clock::now();
 #if OPENGL_GPU_INTEROP
@@ -1289,16 +1164,6 @@ int main(int argc, char *argv[])
 				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, zedWidth, zedHeight, 0, GL_BGR, GL_UNSIGNED_BYTE, bufferD);
 			}
 
-			/*if (eye == ovrEye_Left)
-			{
-			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, zedWidth, zedHeight, 0, GL_BGRA, GL_UNSIGNED_BYTE, bufferI);
-			bufferI = '\0';
-			}
-			else
-			{
-			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, zedWidth, zedHeight, 0, GL_BGRA, GL_UNSIGNED_BYTE, bufferD);
-			bufferD = '\0';
-			}*/
 #endif
 			// Bind the hit value
 			//glGetUniformLocation returns the location of the variable called as the second argument

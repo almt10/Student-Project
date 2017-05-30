@@ -33,7 +33,8 @@
 #define DEFAULT_PORT "27015"
 #define DEFAULT_WEB_PORT "5000"
 #define SERVER_IP "192.168.2.98"
-#define encode false
+//variable used to decide if the images travel in RAW or Compressed format
+#define encode true
 
 int main()
 {
@@ -128,6 +129,7 @@ int main()
 			//return 1;
 		}
 
+		//variables used to treat the information of each frame before sending it
 		unsigned char *bufferL = NULL;
 		unsigned char *bufferR = NULL;
 		unsigned char *infoL = NULL;
@@ -202,6 +204,7 @@ int main()
 					size = sizeL;
 				}
 
+				//the programs attaches the labels of the protocol to the image information
 				startChrono = std::chrono::system_clock::now();
 				if (encode) {
 					bufferL = (unsigned char *)realloc(bufferL, (size + 12));
@@ -216,7 +219,6 @@ int main()
 				}
 				else {
 					bufferL = (unsigned char *)realloc(bufferL, (size + 8));
-					//printf("\nsize of the image L: %d\n", size);
 					bufferL[0] = 'a';
 					bufferL[1] = 'a';
 					bufferL[2] = 'L';
@@ -250,7 +252,7 @@ int main()
 					fs2 << sendData[i] << std::endl;
 				}
 
-				  //now we do the same but with the Rigth image
+				//now we do the same but with the Rigth image
 				infoR = zed->retrieveImage(sl::zed::SIDE::RIGHT).data;
 				if (encode) {
 					memcpy(image.data, infoR, zedWidth*zedHeight * 4 * sizeof(uchar));
@@ -263,7 +265,7 @@ int main()
 					size = sizeR;
 				}
 			
-
+				//Again the program attaches the labels of the protocol to the information
 				if (encode) {
 					bufferR = (unsigned char *)realloc(bufferR, (size + 12));
 					bufferR[0] = 'a';
@@ -277,7 +279,6 @@ int main()
 				}
 				else {
 					bufferR = (unsigned char *)realloc(bufferR, (size +8));
-					//printf("\nsize of the image L: %d\n", size);
 					bufferR[0] = 'a';
 					bufferR[1] = 'a';
 					bufferR[2] = 'R';
@@ -288,9 +289,6 @@ int main()
 				}
 
 				//we send the information of the Left side
-				for (int v = 0; v < 6; v++) {
-					testR[v] = bufferR[7 + v];
-				}
 				iResult = send(ConnectSocket, (const char *)bufferR, bytesToSend, 0);
  				if (iResult == SOCKET_ERROR) {
 					printf("send failed with error: %d\n", WSAGetLastError());
